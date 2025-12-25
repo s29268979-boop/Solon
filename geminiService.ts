@@ -2,9 +2,10 @@
 import { GoogleGenAI } from "@google/genai";
 import { UserProfile, JobOpportunity, InvestmentStrategy } from "./types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-
 export const getSolonResponse = async (profile: UserProfile, currentTime: Date) => {
+  // Create a new GoogleGenAI instance right before making an API call to ensure it uses the most up-to-date API key
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   // El tool 'googleMaps' solo es compatible con la serie 2.5
   const modelName = 'gemini-2.5-flash';
   

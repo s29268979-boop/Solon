@@ -7,7 +7,15 @@ import JobMap from './components/JobMap';
 import InvestmentView from './components/InvestmentView';
 import { getSolonResponse } from './geminiService';
 
+declare global {
+  // Use the pre-defined AIStudio type to avoid conflict with existing global definitions.
+  interface Window {
+    aistudio: AIStudio;
+  }
+}
+
 const App: React.FC = () => {
+  const [hasKey, setHasKey] = useState<boolean | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,9 +32,45 @@ const App: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
+    const checkKey = async () => {
+      if (window.aistudio) {
+        const selected = await window.aistudio.hasSelectedApiKey();
+        setHasKey(selected);
+      } else {
+        // Fallback para entornos donde no esté el objeto aistudio
+        setHasKey(true);
+      }
+    };
+    checkKey();
+    
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
+
+  const handleActivate = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      setHasKey(true); // Asumimos éxito tras el diálogo según las guías
+    }
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Sólon - El Buscador de Patrones',
+          text: 'Descubre vacantes reales y estrategias de inversión con capital mínimo.',
+          url: window.location.href,
+        });
+      } catch (err) {
+        console.log('Error compartiendo:', err);
+      }
+    } else {
+      // Fallback: Copiar al portapapeles
+      navigator.clipboard.writeText(window.location.href);
+      alert("Enlace copiado al portapapeles");
+    }
+  };
 
   const handleProfileSubmit = async (userProfile: UserProfile) => {
     setProfile(userProfile);
@@ -43,7 +87,7 @@ const App: React.FC = () => {
       });
       setView('selection');
     } catch (err) {
-      setError("No pude sincronizar los patrones del mercado en este momento. Inténtalo de nuevo.");
+      setError("No pude sincronizar los patrones del mercado. Asegúrate de que tu llave sea válida y tengas conexión.");
       console.error(err);
     } finally {
       setLoading(false);
@@ -54,6 +98,36 @@ const App: React.FC = () => {
     const hours = currentTime.getHours();
     return hours >= 9 && hours <= 18;
   };
+
+  // Pantalla de Activación para Enlaces Públicos
+  if (hasKey === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="max-w-md w-full glass-card rounded-[2.5rem] p-10 text-center border-gold/40 animate-in fade-in zoom-in duration-500">
+          <div className="w-20 h-20 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center mx-auto mb-8">
+            <i className="fa-solid fa-key gold-text text-3xl"></i>
+          </div>
+          <h2 className="cinzel text-3xl font-bold gold-text mb-4 tracking-tighter uppercase">Portal de Sólon</h2>
+          <p className="text-gray-400 text-sm leading-relaxed mb-8">
+            Para que Sólon pueda analizar los patrones del mercado en tiempo real, es necesario activar una conexión segura de Google AI Studio.
+          </p>
+          <button 
+            onClick={handleActivate}
+            className="w-full gold-gradient-bg text-black font-bold py-4 rounded-2xl cinzel tracking-widest hover:scale-[1.02] transition-all shadow-lg shadow-gold/20"
+          >
+            ACTIVAR CONEXIÓN
+          </button>
+          <a 
+            href="https://ai.google.dev/gemini-api/docs/billing" 
+            target="_blank" 
+            className="block mt-6 text-[10px] text-gray-500 uppercase tracking-widest hover:text-gold transition-colors"
+          >
+            Documentación de Facturación e Idioma
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   if (!profile) {
     return (
@@ -71,11 +145,20 @@ const App: React.FC = () => {
           <p className="text-[10px] uppercase tracking-[0.4em] text-gray-500 font-bold">Arquitecto de Patrones Existenciales</p>
         </div>
 
-        <div className="flex gap-4 items-center">
+        <div className="flex gap-3 items-center">
           <div className="glass-card px-4 py-2 rounded-lg text-[10px] font-mono border-gold/30">
-            <span className="text-gray-500 uppercase mr-2">Tiempo Presencial:</span> 
+            <span className="text-gray-500 uppercase mr-2">Sincronía:</span> 
             <span className="gold-text font-bold">{currentTime.toLocaleTimeString()}</span>
           </div>
+          
+          <button 
+            onClick={handleShare}
+            className="w-10 h-10 rounded-full border border-gold/30 flex items-center justify-center hover:bg-gold hover:text-black transition-all duration-300 group"
+            title="Compartir enlace"
+          >
+            <i className="fa-solid fa-share-nodes group-hover:scale-110"></i>
+          </button>
+
           <button 
             onClick={() => window.location.reload()}
             className="w-10 h-10 rounded-full border border-gold/30 flex items-center justify-center hover:bg-gold hover:text-black transition-all duration-300"
@@ -97,7 +180,7 @@ const App: React.FC = () => {
           </div>
           <div className="text-center">
             <p className="cinzel gold-text text-2xl tracking-widest animate-pulse">Sincronizando Destinos...</p>
-            <p className="text-gray-500 text-xs mt-3 uppercase tracking-widest leading-relaxed">Analizando oportunidades directas y rutas geográficas</p>
+            <p className="text-gray-500 text-xs mt-3 uppercase tracking-widest leading-relaxed">Analizando oportunidades reales en tu red geográfica</p>
           </div>
         </div>
       ) : results ? (
@@ -117,10 +200,10 @@ const App: React.FC = () => {
                 </div>
                 <div>
                   <h2 className="cinzel text-3xl font-bold gold-text tracking-tighter uppercase">Oportunidades</h2>
-                  <p className="text-gray-400 text-sm mt-3 leading-relaxed font-light">Acceso a vacantes directas con contacto telefónico y rutas para aplicación física inmediata.</p>
+                  <p className="text-gray-400 text-sm mt-3 leading-relaxed font-light">Búsqueda de vacantes físicas reales con contacto directo telefónico.</p>
                 </div>
                 <div className="pt-4">
-                  <span className="text-[10px] text-gold font-bold uppercase tracking-[0.3em] border-b border-gold/40 pb-1">Ingresar al Patrón</span>
+                  <span className="text-[10px] text-gold font-bold uppercase tracking-[0.3em] border-b border-gold/40 pb-1">Identificar Destino</span>
                 </div>
               </button>
 
@@ -135,8 +218,8 @@ const App: React.FC = () => {
                   <i className="fa-solid fa-chart-line text-4xl gold-text"></i>
                 </div>
                 <div>
-                  <h2 className="cinzel text-3xl font-bold gold-text tracking-tighter uppercase">Estrategia Inicia</h2>
-                  <p className="text-gray-400 text-sm mt-3 leading-relaxed font-light">Centro de comando para micro-capitales ($10-$100) en sectores de alto potencial educativo.</p>
+                  <h2 className="cinzel text-3xl font-bold gold-text tracking-tighter uppercase">Micro-Inversión</h2>
+                  <p className="text-gray-400 text-sm mt-3 leading-relaxed font-light">Estrategias de 4 pilares financieros para capitales de $10 a $100 USD.</p>
                 </div>
                 <div className="pt-4">
                   <span className="text-[10px] text-gold font-bold uppercase tracking-[0.3em] border-b border-gold/40 pb-1">Ver Hoja de Ruta</span>
@@ -183,7 +266,7 @@ const App: React.FC = () => {
                   ) : (
                     <div className="col-span-full py-24 text-center glass-card rounded-3xl border-dashed border-gold/20">
                       <i className="fa-solid fa-wind text-3xl gold-text/20 mb-4"></i>
-                      <p className="text-gray-500 italic text-sm font-light">No se detectaron vacantes de aplicación directa en este ciclo de 5 días.</p>
+                      <p className="text-gray-500 italic text-sm font-light">No se detectaron vacantes de aplicación directa en este ciclo.</p>
                     </div>
                   )}
                 </div>
@@ -225,8 +308,7 @@ const App: React.FC = () => {
                   <div className="max-w-4xl">
                     <p className="text-sm text-gray-400 leading-relaxed font-light">
                       Toda la información presentada ha sido sincronizada a partir de patrones de mercado recientes analizados por Sólon. 
-                      La naturaleza del entorno es dinámica; por ello, instamos a los usuarios a <span className="text-gold font-bold">corroborar telefónicamente</span> las vacantes y direcciones antes de iniciar cualquier traslado físico. 
-                      <span className="block mt-2 italic text-gray-500">Sólon facilita el camino, pero la verificación final es el último paso del éxito.</span>
+                      Instamos a los usuarios a <span className="text-gold font-bold">corroborar telefónicamente</span> las vacantes antes de iniciar cualquier traslado físico. 
                     </p>
                   </div>
                 </div>
@@ -245,7 +327,7 @@ const App: React.FC = () => {
              
              <div className="max-w-2xl mx-auto px-8 py-5 glass-card rounded-2xl border-none bg-white/5 shadow-2xl">
                 <p className="text-[9px] text-gray-600 uppercase tracking-[0.2em] leading-relaxed italic">
-                  Portal Sólon: Arquitectura de asistencia laboral y financiera diseñada para identificar oportunidades de aplicación directa.
+                  Portal Sólon: Arquitectura de asistencia diseñada para identificar oportunidades reales.
                 </p>
              </div>
           </footer>
